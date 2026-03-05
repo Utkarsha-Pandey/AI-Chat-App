@@ -50,3 +50,31 @@ def get_session_messages(
 
     messages = db.query(models.Message).filter(models.Message.session_id == session_id).all()
     return messages
+
+@router.post("/{session_id}/messages", response_model=schemas.MessageResponse)
+def create_message(
+    session_id: int, 
+    message_in: schemas.MessageCreate, 
+    db: Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    session = db.query(models.ChatSession).filter(
+        models.ChatSession.id == session_id,
+        models.ChatSession.user_id == current_user.id
+    ).first()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found or unauthorized")
+
+    new_message = models.Message(
+        session_id=session_id,
+        role=message_in.role,
+        content=message_in.content
+    )
+    db.add(new_message)
+    db.commit()
+    db.refresh(new_message)
+    
+   
+
+    return new_message
