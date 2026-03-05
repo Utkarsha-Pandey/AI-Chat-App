@@ -161,16 +161,41 @@ else:
         
         if prompt := st.chat_input("Send a message to Nexus..."):
             
+            # 1. Instantly display the user's message
             with st.chat_message("user", avatar="👤"):
                 st.write(prompt)
                 
-            payload = {"role": "user", "content": prompt}
-            post_res = requests.post(f"{API_URL}/chats/{session_id}/messages", json=payload, headers=get_headers())
-            
-            if post_res.status_code == 200:
-                st.rerun()
-            else:
-                st.error("Message delivery failed.")
+            # 2. Show the streaming AI response
+            with st.chat_message("assistant", avatar="💠"):
+                response_placeholder = st.empty()
+                full_response = ""
+                
+                payload = {"role": "user", "content": prompt}
+                
+                # Make a streaming POST request to the new endpoint
+                try:
+                    with requests.post(
+                        f"{API_URL}/chats/{session_id}/messages/stream", 
+                        json=payload, 
+                        headers=get_headers(), 
+                        stream=True
+                    ) as r:
+                        if r.status_code == 200:
+                            for chunk in r.iter_content(chunk_size=None):
+                                if chunk:
+                                    # Decode the chunk and append to the full response
+                                    decoded_chunk = chunk.decode("utf-8")
+                                    full_response += decoded_chunk
+                                    # Update the placeholder with the current text + a blinking block
+                                    response_placeholder.write(full_response + "▌")
+                            
+                            # Final write to remove the block cursor once the stream is done
+                            response_placeholder.write(full_response)
+                        else:
+                            st.error(f"Failed to fetch response: {r.status_code}")
+                except Exception as e:
+                    st.error(f"Connection error: {e}")
+
     else:
         st.markdown("<br><br><br><br><br>", unsafe_allow_html=True)
         st.markdown('<h2 style="text-align: center; color: #F8FAFC; font-weight: 600;">How can I assist you?</h2>', unsafe_allow_html=True)
