@@ -165,7 +165,7 @@ else:
                 st.write(prompt)
                 
             payload = {"role": "user", "content": prompt}
-            post_res = requests.post(f"{API_URL}/chats/{session_id}/messages", json=payload, headers=get_headers())
+            post_res = requests.post(f"{API_URL}/chats/{session_id}/messages/stream", json=payload, headers=get_headers())
             
             if post_res.status_code == 200:
                 st.rerun()

@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from pgvector.sqlalchemy import Vector
 from .database import Base
 
 class User(Base):
@@ -24,6 +25,7 @@ class ChatSession(Base):
 
     user = relationship("User", back_populates="sessions")
 
+
 class Message(Base):
     __tablename__ = "messages"
 
@@ -31,6 +33,8 @@ class Message(Base):
     session_id = Column(Integer, ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False)
     role = Column(String, nullable=False) 
     content = Column(String, nullable=False)
+    
+    #  Stores the mathematical representation of the message for long-term memory
+    embedding = Column(Vector(384)) 
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    session = relationship("ChatSession", backref="messages")
