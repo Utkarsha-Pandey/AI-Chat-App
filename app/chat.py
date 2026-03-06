@@ -7,7 +7,6 @@ from sentence_transformers import SentenceTransformer
 from . import models, schemas, config
 from .database import get_db
 from .auth import get_current_user 
-from fastapi.responses import StreamingResponse
 
 router = APIRouter(
     prefix="/chats",
@@ -22,7 +21,6 @@ embedder = SentenceTransformer('all-MiniLM-L6-v2')
 def create_chat_session(
     session_in: schemas.ChatSessionCreate, 
     db: Session = Depends(get_db), 
-    current_user: models.User = Depends(get_current_user)
     current_user: models.User = Depends(get_current_user)
 ):
     new_session = models.ChatSession(
@@ -62,20 +60,15 @@ def get_session_messages(
 
 @router.post("/{session_id}/messages/stream")
 def stream_message(
-
-@router.post("/{session_id}/messages/stream")
-def stream_message(
     session_id: int, 
     message_in: schemas.MessageCreate, 
     db: Session = Depends(get_db), 
     current_user: models.User = Depends(get_current_user)
 ):
-    # 1. Verify session
     session = db.query(models.ChatSession).filter(
         models.ChatSession.id == session_id,
         models.ChatSession.user_id == current_user.id
     ).first()
-    
     
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
@@ -90,7 +83,6 @@ def stream_message(
         content=message_in.content,
         embedding=user_vector
     )
-    db.add(user_message)
     db.add(user_message)
     db.commit()
 
@@ -153,3 +145,4 @@ def stream_message(
         db_stream.close()
 
     return StreamingResponse(iter_groq(), media_type="text/event-stream")
+
