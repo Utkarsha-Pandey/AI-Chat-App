@@ -161,6 +161,7 @@ else:
         
         if prompt := st.chat_input("Send a message to Nexus..."):
             
+            # 1. Instantly display the user's message
             with st.chat_message("user", avatar="👤"):
                 st.write(prompt)
                 
