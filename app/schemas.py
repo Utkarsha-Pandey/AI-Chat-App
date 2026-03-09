@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
+from typing import Optional
 
 
 class UserBase(BaseModel):
@@ -38,6 +39,7 @@ class ChatSessionResponse(BaseModel):
 class MessageCreate(BaseModel):
     role: str 
     content: str
+    image_base64: Optional[str] = None
 
 class MessageResponse(BaseModel):
     id: int

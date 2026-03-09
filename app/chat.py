@@ -13,7 +13,6 @@ router = APIRouter(
     tags=["Chats"]
 )
 
-# Initialize the Groq Client and the Local Embedding Model
 client = Groq(api_key=config.GROQ_API_KEY)
 embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
@@ -57,7 +56,6 @@ def get_session_messages(
     messages = db.query(models.Message).filter(models.Message.session_id == session_id).all()
     return messages
 
-
 @router.post("/{session_id}/messages/stream")
 def stream_message(
     session_id: int, 
@@ -73,10 +71,8 @@ def stream_message(
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
-    # 1. Create vector for user's message
     user_vector = embedder.encode(message_in.content).tolist()
 
-    # 2. Save user message with its vector
     user_message = models.Message(
         session_id=session_id, 
         role=message_in.role, 
@@ -86,7 +82,6 @@ def stream_message(
     db.add(user_message)
     db.commit()
 
-    # 3. Retrieve relevant past memories (Long-Term Memory RAG)
     similar_past_messages = db.query(models.Message).join(models.ChatSession).filter(
         models.ChatSession.user_id == current_user.id,
         models.Message.id != user_message.id 
@@ -103,9 +98,9 @@ def stream_message(
     If the memories are relevant to their new message, use them to answer. Answer clearly and concisely.
     """
 
-    # 4. Fetch recent chat history (Short-Term Memory)
     recent_history = db.query(models.Message).filter(
-        models.Message.session_id == session_id
+        models.Message.session_id == session_id,
+        models.Message.id != user_message.id 
     ).order_by(models.Message.created_at.desc()).limit(5).all()
     recent_history.reverse()
 
@@ -113,12 +108,29 @@ def stream_message(
     for msg in recent_history:
         groq_messages.append({"role": msg.role, "content": msg.content})
 
-    # 5. Stream the response from Groq
+    if message_in.image_base64:
+        groq_messages.append({
+            "role": message_in.role,
+            "content": [
+                {"type": "text", "text": message_in.content},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{message_in.image_base64}"
+                    }
+                }
+            ]
+        })
+        groq_model = "meta-llama/llama-4-scout-17b-16e-instruct" 
+    else:
+        groq_messages.append({"role": message_in.role, "content": message_in.content})
+        groq_model = "llama-3.3-70b-versatile" 
+
     def iter_groq():
         full_response = ""
         stream = client.chat.completions.create(
             messages=groq_messages,
-            model="llama-3.3-70b-versatile",
+            model=groq_model,
             temperature=0.3,
             stream=True
         )
@@ -129,7 +141,6 @@ def stream_message(
                 full_response += text
                 yield text
         
-        # 6. Save AI's response with its own vector
         from .database import SessionLocal
         db_stream = SessionLocal()
         ai_vector = embedder.encode(full_response).tolist()
@@ -145,4 +156,3 @@ def stream_message(
         db_stream.close()
 
     return StreamingResponse(iter_groq(), media_type="text/event-stream")
-

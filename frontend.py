@@ -1,9 +1,9 @@
 import streamlit as st
 import requests
+import base64
 
 API_URL = "http://localhost:8000"
 
-# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="Nexus AI", 
     page_icon="💠", 
@@ -11,15 +11,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM CSS (UI POLISH) ---
 st.markdown("""
 <style>
-    /* Hide default Streamlit clutter */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Modern Gradient Title */
     .main-title {
         font-size: 3.5rem;
         font-weight: 800;
@@ -39,7 +36,6 @@ st.markdown("""
         font-weight: 400;
     }
 
-    /* Elegant Login Card */
     .login-box {
         background-color: #1E293B;
         padding: 3rem;
@@ -48,7 +44,6 @@ st.markdown("""
         box-shadow: 0 10px 25px rgba(0,0,0,0.3);
     }
     
-    /* Sleek Sidebar Header */
     .sidebar-title {
         color: #60A5FA;
         font-size: 1.8rem;
@@ -58,7 +53,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- INITIALIZE SESSION STATE ---
 if "token" not in st.session_state:
     st.session_state["token"] = None
 if "current_session_id" not in st.session_state:
@@ -67,7 +61,6 @@ if "current_session_id" not in st.session_state:
 def get_headers():
     return {"Authorization": f"Bearer {st.session_state['token']}"}
 
-# --- LOGIN / SIGN UP SCREEN ---
 if not st.session_state["token"]:
     st.markdown('<p class="main-title">💠 Nexus AI</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-title">Your intelligent workspace.</p>', unsafe_allow_html=True)
@@ -108,9 +101,7 @@ if not st.session_state["token"]:
                     st.error("Registration failed.")
         st.markdown('</div>', unsafe_allow_html=True)
 
-# --- MAIN CHAT APP ---
 else:
-    # --- SIDEBAR ---
     with st.sidebar:
         st.markdown('<div class="sidebar-title">💠 Nexus</div>', unsafe_allow_html=True)
         
@@ -143,37 +134,43 @@ else:
             st.session_state["current_session_id"] = None
             st.rerun()
 
-    # --- MAIN WINDOW ---
     if st.session_state["current_session_id"]:
         session_id = st.session_state["current_session_id"]
         
-        # CORRECTED GET REQUEST: Notice there is NO /stream at the end of this URL!
         msg_res = requests.get(f"{API_URL}/chats/{session_id}/messages", headers=get_headers())
         
         if msg_res.status_code == 200:
             messages = msg_res.json()
             
-            # Custom Avatars for the chat bubbles
             avatar_map = {"user": "👤", "assistant": "💠"}
             
             for msg in messages:
                 with st.chat_message(msg["role"], avatar=avatar_map.get(msg["role"], "💬")):
                     st.write(msg["content"])
         
+        with st.expander("📎 Attach an Image"):
+            uploaded_file = st.file_uploader("Upload a picture for Nexus to analyze", type=["jpg", "jpeg", "png"])
+        
         if prompt := st.chat_input("Send a message to Nexus..."):
             
-            # 1. Instantly display the user's message
+            base64_image = None
+            if uploaded_file:
+                bytes_data = uploaded_file.getvalue()
+                base64_image = base64.b64encode(bytes_data).decode("utf-8")
+
             with st.chat_message("user", avatar="👤"):
+                if uploaded_file:
+                    st.image(uploaded_file, width=300)
                 st.write(prompt)
                 
-            # 2. Show the streaming AI response
             with st.chat_message("assistant", avatar="💠"):
                 response_placeholder = st.empty()
                 full_response = ""
                 
                 payload = {"role": "user", "content": prompt}
+                if base64_image:
+                    payload["image_base64"] = base64_image
                 
-                # Make a streaming POST request to the correct streaming endpoint
                 try:
                     with requests.post(
                         f"{API_URL}/chats/{session_id}/messages/stream", 
