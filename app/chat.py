@@ -4,6 +4,11 @@ from sqlalchemy.orm import Session
 from typing import List
 from groq import Groq
 from sentence_transformers import SentenceTransformer
+import base64
+from io import BytesIO
+from PIL import Image
+import pytesseract
+
 from . import models, schemas, config
 from .database import get_db
 from .auth import get_current_user 
@@ -109,19 +114,30 @@ def stream_message(
         groq_messages.append({"role": msg.role, "content": msg.content})
 
     if message_in.image_base64:
-        groq_messages.append({
-            "role": message_in.role,
-            "content": [
-                {"type": "text", "text": message_in.content},
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{message_in.image_base64}"
+        image_data = base64.b64decode(message_in.image_base64)
+        image = Image.open(BytesIO(image_data))
+        
+        extracted_text = pytesseract.image_to_string(image).strip()
+        
+        if extracted_text:
+            augmented_prompt = f"{message_in.content}\n\n[Extracted Text from Attached Image]:\n{extracted_text}"
+            groq_messages.append({"role": message_in.role, "content": augmented_prompt})
+            groq_model = "llama-3.3-70b-versatile" 
+        else:
+            groq_messages.append({
+                "role": message_in.role,
+                "content": [
+                    {"type": "text", "text": message_in.content},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{message_in.image_base64}"
+                        }
                     }
-                }
-            ]
-        })
-        groq_model = "meta-llama/llama-4-scout-17b-16e-instruct" 
+                ]
+            })
+            groq_model = "meta-llama/llama-4-scout-17b-16e-instruct" 
+            
     else:
         groq_messages.append({"role": message_in.role, "content": message_in.content})
         groq_model = "llama-3.3-70b-versatile" 
