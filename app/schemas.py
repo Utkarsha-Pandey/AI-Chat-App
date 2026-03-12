@@ -40,6 +40,7 @@ class MessageCreate(BaseModel):
     role: str 
     content: str
     image_base64: Optional[str] = None
+    audio_base64: Optional[str] = None
 
 class MessageResponse(BaseModel):
     id: int

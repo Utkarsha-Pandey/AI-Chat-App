@@ -76,6 +76,15 @@ def stream_message(
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
 
+    if message_in.audio_base64:
+        audio_data = base64.b64decode(message_in.audio_base64)
+        transcription = client.audio.transcriptions.create(
+            file=("voice_note.wav", audio_data),
+            model="whisper-large-v3-turbo",
+            response_format="text"
+        )
+        message_in.content = transcription
+
     user_vector = embedder.encode(message_in.content).tolist()
 
     user_message = models.Message(

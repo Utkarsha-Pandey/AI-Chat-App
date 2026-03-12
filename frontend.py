@@ -148,28 +148,50 @@ else:
                 with st.chat_message(msg["role"], avatar=avatar_map.get(msg["role"], "💬")):
                     st.write(msg["content"])
         
-        with st.expander("📎 Attach an Image"):
-            uploaded_file = st.file_uploader("Upload a picture for Nexus to analyze", type=["jpg", "jpeg", "png"])
+        col1, col2 = st.columns(2)
+        with col1:
+            with st.expander("📎 Attach an Image"):
+                uploaded_file = st.file_uploader("Upload a picture", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+        with col2:
+            with st.expander("🎙️ Record a Voice Note"):
+                audio_file = st.audio_input("Speak to Nexus", label_visibility="collapsed")
         
-        if prompt := st.chat_input("Send a message to Nexus..."):
+        prompt = st.chat_input("Send a message to Nexus...")
+        
+        send_audio_btn = False
+        if audio_file and not prompt:
+            send_audio_btn = st.button("🎤 Send Voice Note", type="primary")
+        
+        if prompt or send_audio_btn:
+            
+            actual_prompt = prompt if prompt else "🎤 [Voice Message Sent]"
             
             base64_image = None
             if uploaded_file:
                 bytes_data = uploaded_file.getvalue()
                 base64_image = base64.b64encode(bytes_data).decode("utf-8")
+                
+            base64_audio = None
+            if audio_file:
+                audio_bytes = audio_file.getvalue()
+                base64_audio = base64.b64encode(audio_bytes).decode("utf-8")
 
             with st.chat_message("user", avatar="👤"):
                 if uploaded_file:
                     st.image(uploaded_file, width=300)
-                st.write(prompt)
+                if audio_file:
+                    st.audio(audio_file)
+                st.write(actual_prompt)
                 
             with st.chat_message("assistant", avatar="💠"):
                 response_placeholder = st.empty()
                 full_response = ""
                 
-                payload = {"role": "user", "content": prompt}
+                payload = {"role": "user", "content": actual_prompt}
                 if base64_image:
                     payload["image_base64"] = base64_image
+                if base64_audio:
+                    payload["audio_base64"] = base64_audio
                 
                 try:
                     with requests.post(
